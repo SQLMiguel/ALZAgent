@@ -4,8 +4,9 @@
  */
 
 import * as vscode from 'vscode';
-import { ConversationManager } from './conversation-manager';
+import { ConversationManager, Session } from './conversation-manager';
 import { PhasePipeline, Phase } from './phase-pipeline';
+import { LlmService, ChatTurn } from './llm-service';
 import { RAGEngine } from '../rag/rag-engine';
 import { ADRGenerator } from '../generators/adr-generator';
 import { IaCGenerator } from '../generators/iac-generator';
@@ -15,16 +16,20 @@ import { ALZValidator } from '../validation/alz-validator';
 export class ALZAgentHandler {
   private conversationManager: ConversationManager;
   private phasePipeline: PhasePipeline;
+  private llm: LlmService;
   private ragEngine: RAGEngine;
   private adrGenerator: ADRGenerator;
   private iacGenerator: IaCGenerator;
   private diagramGenerator: DiagramGenerator;
   private validator: ALZValidator;
+  private extensionUri: vscode.Uri;
+  private systemPromptCache?: string;
 
   constructor(context: vscode.ExtensionContext) {
-    // Initialize components
+    this.extensionUri = context.extensionUri;
     this.conversationManager = new ConversationManager(context);
     this.phasePipeline = new PhasePipeline();
+    this.llm = new LlmService();
     this.ragEngine = new RAGEngine();
     this.adrGenerator = new ADRGenerator();
     this.iacGenerator = new IaCGenerator();
@@ -32,21 +37,15 @@ export class ALZAgentHandler {
     this.validator = new ALZValidator();
   }
 
-  /**
-   * Handle incoming chat request
-   */
   async handleRequest(
     request: vscode.ChatRequest,
-    context: vscode.ChatContext,
+    _context: vscode.ChatContext,
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken
   ): Promise<void> {
-    // Load conversation state (ChatContext does not expose a stable sessionId in current API)
     const session = await this.conversationManager.loadSession('default');
-    
-    // Route based on command or default to conversational
     const command = request.command;
-    
+
     try {
       if (command === 'design') {
         await this.handleDesignCommand(request, session, stream, token);
@@ -61,123 +60,102 @@ export class ALZAgentHandler {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      stream.markdown(`❌ Error: ${message}`);
+      stream.markdown(`\u274c Error: ${message}`);
       console.error('[ALZ Agent] Error:', error);
     } finally {
-      // Persist conversation state
       await this.conversationManager.saveSession(session);
     }
   }
 
-  /**
-   * /design command: Interactive design questionnaire
-   */
   private async handleDesignCommand(
     request: vscode.ChatRequest,
-    session: any,
+    session: Session,
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken
   ): Promise<void> {
-    stream.markdown('## 🏗️ Landing Zone Design Assistant\n\n');
-    stream.markdown('I\'ll help you design your Azure Landing Zone architecture. Let\'s gather requirements.\n\n');
-    
-    // Phase 1: Requirements Discovery
     await this.phasePipeline.transitionTo(Phase.DISCOVERY, session);
-    
+
     const questions = await this.loadPromptTemplate('discovery.md');
     stream.markdown(questions);
-    
-    // TODO: Implement multi-turn questionnaire
+    this.conversationManager.appendMessage(session, 'assistant', questions);
+
+    if (request.prompt && request.prompt.trim().length > 0) {
+      stream.markdown('\n\n---\n\n');
+      await this.handleConversation(request, session, stream, token);
+    }
   }
 
-  /**
-   * /validate command: Validate IaC templates
-   */
   private async handleValidateCommand(
-    request: vscode.ChatRequest,
-    session: any,
+    _request: vscode.ChatRequest,
+    _session: Session,
     stream: vscode.ChatResponseStream,
-    token: vscode.CancellationToken
+    _token: vscode.CancellationToken
   ): Promise<void> {
-    stream.markdown('## ✅ Validation\n\n');
-    
-    // Find IaC files in workspace
+    stream.markdown('## \u2705 Validation\n\n');
+
     const iacFiles = await vscode.workspace.findFiles('**/*.{bicep,tf}', '**/node_modules/**');
-    
     if (iacFiles.length === 0) {
-      stream.markdown('⚠️ No IaC files found in workspace. Please generate templates first.\n');
+      stream.markdown('\u26a0\ufe0f No IaC files found in workspace. Use `/generate` first.\n');
       return;
     }
-    
+
     stream.markdown(`Found ${iacFiles.length} IaC files. Validating...\n\n`);
-    
-    // Validate each file
     for (const file of iacFiles) {
       const results = await this.validator.validate(file.fsPath);
-      stream.markdown(`### ${file.fsPath}\n`);
+      stream.markdown(`### ${vscode.workspace.asRelativePath(file)}\n`);
       stream.markdown(`- Security Score: ${results.securityScore}/100\n`);
-      stream.markdown(`- Syntax: ${results.syntaxValid ? '✅' : '❌'}\n`);
+      stream.markdown(`- Syntax: ${results.syntaxValid ? '\u2705' : '\u274c'}\n`);
       stream.markdown(`- Best Practices: ${results.bestPracticesScore}/100\n\n`);
     }
   }
 
-  /**
-   * /generate command: Generate ADRs and IaC
-   */
   private async handleGenerateCommand(
-    request: vscode.ChatRequest,
-    session: any,
+    _request: vscode.ChatRequest,
+    session: Session,
     stream: vscode.ChatResponseStream,
-    token: vscode.CancellationToken
+    _token: vscode.CancellationToken
   ): Promise<void> {
-    stream.markdown('## 📝 Generate Artifacts\n\n');
-    
+    stream.markdown('## \ud83d\udcdd Generate Artifacts\n\n');
+
     if (!session.requirements || Object.keys(session.requirements).length === 0) {
-      stream.markdown('⚠️ No requirements captured yet. Use `/design` first.\n');
+      stream.markdown('\u26a0\ufe0f No requirements captured yet. Use `/design` first.\n');
       return;
     }
-    
-    // Generate ADRs
+
     stream.markdown('### Generating Architecture Decision Records...\n');
     const adrs = await this.adrGenerator.generateFromRequirements(session.requirements);
-    
     for (const adr of adrs) {
       const filePath = `docs/architecture/decisions/${adr.id}.md`;
       await this.writeFile(filePath, adr.content);
-      stream.markdown(`- ✅ Created [${adr.id}](${filePath})\n`);
+      stream.markdown(`- \u2705 Created [${adr.id}](${filePath})\n`);
     }
-    
-    // Generate IaC
+
     stream.markdown('\n### Generating Infrastructure-as-Code...\n');
-    const iacFormat = vscode.workspace.getConfiguration('alz-agent').get('preferredIaC') as string;
+    const iacFormat =
+      vscode.workspace.getConfiguration('alz-agent').get<string>('preferredIaC') ?? 'bicep';
     const templates = await this.iacGenerator.generate(session.requirements, iacFormat);
-    
     for (const template of templates) {
       const dirPath = iacFormat === 'bicep' ? 'infrastructure/bicep' : 'infrastructure/terraform';
       const filePath = `${dirPath}/${template.filename}`;
       await this.writeFile(filePath, template.content);
-      stream.markdown(`- ✅ Created [${template.filename}](${filePath})\n`);
+      stream.markdown(`- \u2705 Created [${template.filename}](${filePath})\n`);
     }
   }
 
-  /**
-   * /diagram command: Generate architecture diagrams
-   */
   private async handleDiagramCommand(
-    request: vscode.ChatRequest,
-    session: any,
+    _request: vscode.ChatRequest,
+    session: Session,
     stream: vscode.ChatResponseStream,
-    token: vscode.CancellationToken
+    _token: vscode.CancellationToken
   ): Promise<void> {
-    stream.markdown('## 📊 Generate Diagrams\n\n');
-    
+    stream.markdown('## \ud83d\udcca Generate Diagrams\n\n');
+
     if (!session.requirements) {
-      stream.markdown('⚠️ No requirements captured yet. Use `/design` first.\n');
+      stream.markdown('\u26a0\ufe0f No requirements captured yet. Use `/design` first.\n');
       return;
     }
-    
+
     const diagrams = await this.diagramGenerator.generate(session.requirements);
-    
     for (const diagram of diagrams) {
       const filePath = `docs/architecture/diagrams/${diagram.name}.mmd`;
       await this.writeFile(filePath, diagram.mermaidCode);
@@ -187,63 +165,80 @@ export class ALZAgentHandler {
   }
 
   /**
-   * Conversational mode: RAG-based Q&A
+   * Conversational mode: real LLM-backed Q&A with persistent history.
    */
   private async handleConversation(
     request: vscode.ChatRequest,
-    session: any,
+    session: Session,
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken
   ): Promise<void> {
     const userMessage = request.prompt;
-    
-    // Retrieve relevant context from MCP servers
-    const context = await this.ragEngine.retrieve(userMessage, session);
-    
-    // Generate response (would call LLM here)
-    const response = await this.generateResponse(userMessage, context, session);
-    
-    stream.markdown(response);
+    if (!userMessage || userMessage.trim().length === 0) {
+      stream.markdown(
+        'Hi - I am the **Landing Zone Provisioning Agent**. ' +
+          'Try `@alz /design` to start a landing zone design, ' +
+          'or ask me any question about Azure Enterprise-Scale Landing Zones.'
+      );
+      return;
+    }
+
+    const systemPrompt = await this.getSystemPrompt();
+    const history: ChatTurn[] = this.conversationManager
+      .getRecentContext(session, 10)
+      .map((m: { role: 'user' | 'assistant'; content: string }) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+    this.conversationManager.appendMessage(session, 'user', userMessage);
+
+    // RAG hook - currently a no-op stub but reserved for retrieval grounding.
+    void this.ragEngine.retrieve(userMessage, session);
+
+    const assistantText = await this.llm.streamChat(
+      systemPrompt,
+      history,
+      userMessage,
+      stream,
+      token
+    );
+
+    if (assistantText.length > 0) {
+      this.conversationManager.appendMessage(session, 'assistant', assistantText);
+    }
   }
 
-  /**
-   * Clear the current session (invoked from alz-agent.clearSession command)
-   */
   async clearSession(): Promise<void> {
     await this.conversationManager.clearSession();
   }
 
-  /**
-   * Load prompt template
-   */
   private async loadPromptTemplate(filename: string): Promise<string> {
-    const uri = vscode.Uri.file(`prompts/alz-agent/${filename}`);
-    const content = await vscode.workspace.fs.readFile(uri);
-    return content.toString();
+    const uri = vscode.Uri.joinPath(this.extensionUri, 'prompts', 'alz-agent', filename);
+    const bytes = await vscode.workspace.fs.readFile(uri);
+    return new TextDecoder('utf-8').decode(bytes);
   }
 
-  /**
-   * Write file to workspace
-   */
+  private async getSystemPrompt(): Promise<string> {
+    if (!this.systemPromptCache) {
+      this.systemPromptCache = await this.loadPromptTemplate('system.md');
+    }
+    return this.systemPromptCache;
+  }
+
   private async writeFile(relativePath: string, content: string): Promise<void> {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
       throw new Error('No workspace folder open');
     }
-    
     const uri = vscode.Uri.joinPath(workspaceFolder.uri, relativePath);
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf-8'));
-  }
 
-  /**
-   * Generate response (placeholder - would use Copilot API)
-   */
-  private async generateResponse(
-    message: string,
-    context: any,
-    session: any
-  ): Promise<string> {
-    // TODO: Integrate with vscode.lm.sendRequest or Copilot Chat API
-    return 'Response generation not yet implemented';
+    const parent = vscode.Uri.joinPath(uri, '..');
+    try {
+      await vscode.workspace.fs.createDirectory(parent);
+    } catch {
+      // ignore
+    }
+    await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(content));
   }
 }

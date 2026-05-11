@@ -6,7 +6,7 @@
 
 ## Overview
 
-The Landing Zone Provisioning Agent is built on the **AgentX framework** and integrates with **GitHub Copilot** to provide conversational Azure Landing Zone architecture guidance within Visual Studio Code. This document describes the technical architecture, component interactions, data flows, and integration patterns.
+The Landing Zone Provisioning Agent integrates with **GitHub Copilot** to provide conversational Azure Landing Zone architecture guidance within Visual Studio Code. This document describes the technical architecture, component interactions, data flows, and integration patterns.
 
 ## Architecture Diagram
 

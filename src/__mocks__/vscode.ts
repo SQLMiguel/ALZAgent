@@ -55,6 +55,24 @@ export class ThemeIcon {
   constructor(public id: string) {}
 }
 
+export const lm = {
+  selectChatModels: jest.fn(() => Promise.resolve([]))
+};
+
+export class LanguageModelChatMessage {
+  constructor(public role: number, public content: string) {}
+  static User(content: string): LanguageModelChatMessage {
+    return new LanguageModelChatMessage(1, content);
+  }
+  static Assistant(content: string): LanguageModelChatMessage {
+    return new LanguageModelChatMessage(2, content);
+  }
+}
+
+export class LanguageModelError extends Error {
+  constructor(message: string) { super(message); }
+}
+
 export enum ChatResponseStream {}
 
 export const ExtensionContext = jest.fn();

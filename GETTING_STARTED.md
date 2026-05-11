@@ -6,7 +6,7 @@
 
 ✅ **Complete project scaffolding** including:
 - Comprehensive PRD (107 story points of work defined)
-- Agent definition following AgentX v8.4.49 patterns
+- Agent definition with phase-based pipeline pattern
 - Technical architecture with component diagrams
 - TypeScript project structure (src/, prompts/, validation/)
 - Sample implementation files (handler, phase-pipeline, conversation-manager)
@@ -333,7 +333,6 @@ Before publishing to VS Code Marketplace:
 
 - **GitHub Issues**: Report bugs or request features
 - **Contributing Guide**: See `CONTRIBUTING.md`
-- **AgentX Documentation**: https://github.com/jnPiyush/AgentX
 
 ## 🚀 Success Criteria
 

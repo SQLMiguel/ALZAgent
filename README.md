@@ -8,7 +8,7 @@
 
 ## Overview
 
-The **Landing Zone Provisioning Agent** is a specialized GitHub Copilot agent for Visual Studio Code that transforms Azure Landing Zone design from a weeks-long manual process into an interactive, guided conversation. Built on the [AgentX framework](https://github.com/jnPiyush/AgentX), it combines expert knowledge of the [Azure Enterprise-Scale Landing Zone architecture](https://github.com/Azure/Enterprise-Scale) with Microsoft documentation and best practices to deliver production-ready infrastructure-as-code.
+The **Landing Zone Provisioning Agent** is a specialized GitHub Copilot agent for Visual Studio Code that transforms Azure Landing Zone design from a weeks-long manual process into an interactive, guided conversation. It combines expert knowledge of the [Azure Enterprise-Scale Landing Zone architecture](https://github.com/Azure/Enterprise-Scale) with Microsoft documentation and best practices to deliver production-ready infrastructure-as-code.
 
 ### Key Capabilities
 
@@ -30,7 +30,7 @@ Cloud architects spend **4-8 weeks** designing Azure Landing Zones, navigating 2
 ### What's Included in the PRD
 
 1. **Executive Summary**: Problem statement, solution overview, success metrics (75% time reduction, 95% conformance, NPS >= 50)
-2. **Research Summary**: Evidence from Azure Landing Zone docs, Enterprise-Scale repo, Cloud Adoption Framework, and AgentX patterns
+2. **Research Summary**: Evidence from Azure Landing Zone docs, Enterprise-Scale repo, and Cloud Adoption Framework
 3. **Goals and Non-Goals**: What v1.0 delivers and what's explicitly deferred (brownfield migration, workload accelerators, multi-cloud)
 4. **User Personas**: Enterprise Cloud Architect, DevOps Engineer, IT Manager/CTO
 5. **Functional Requirements**: 15 detailed requirements with acceptance criteria (architecture guidance, ADR generation, IaC generation, documentation)
@@ -117,7 +117,7 @@ The agent leverages:
   - `azure`: Azure Resource Graph queries, resource management, RBAC
   - `bicep`: Bicep validation, resource type schemas, best practices
   - `github`: Enterprise-Scale repository access, code examples
-- **Skills**: Reuses AgentX skills (`azure`, `bicep`, `architecture`, `diagram-as-code`)
+- **Skills**: Specialized expertise in `azure`, `bicep`, `architecture`, and `diagram-as-code`
 
 ## Roadmap
 
@@ -144,7 +144,7 @@ The agent leverages:
 
 ## Contributing
 
-This project follows the [AgentX contribution guidelines](https://github.com/jnPiyush/AgentX/blob/master/CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
 ### Development Setup
 
@@ -164,7 +164,6 @@ npm run build
 Based on:
 - **Azure Landing Zones**: [Microsoft Cloud Adoption Framework](https://learn.microsoft.com/azure/cloud-adoption-framework/ready/landing-zone/)
 - **Enterprise-Scale**: [Azure/Enterprise-Scale GitHub Repository](https://github.com/Azure/Enterprise-Scale)
-- **AgentX Framework**: [jnPiyush/AgentX](https://github.com/jnPiyush/AgentX)
 
 ## License
 

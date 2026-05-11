@@ -53,11 +53,11 @@ The Landing Zone Provisioning Agent is an AI-powered conversational agent for Vi
 - Decision trees for networking topology, identity federation, and hybrid connectivity
 - Workload-specific accelerators: SAP, AVS, AKS, Azure Virtual Desktop
 
-**AgentX Reference Architecture** (GitHub: jnPiyush/AgentX v8.4.49)
-- 21 specialized agent roles with defined phase pipelines
-- Agent definition format: .agent.md with YAML frontmatter, role boundaries, deliverables, self-review checklist
+**Agent Design Reference Architecture**
+- Specialized agent role with defined phase pipeline (Discovery -> Design -> ADR -> Validation -> IaC -> Documentation -> Self-Review)
+- Agent definition format: `.agent.md` with YAML frontmatter, role boundaries, deliverables, self-review checklist
 - Integration with MCP (Model Context Protocol) servers for external tool access
-- Skills library: 94 production skills across 10 categories
+- Domain skills: Azure, Bicep, architecture, diagram-as-code
 - Quality loop: minimum 5 iterations, loop start → iterate → complete workflow
 
 **Architect Pain Points** (User Research, Q1 2026)
@@ -1315,11 +1315,6 @@ The following questions require stakeholder input before finalization:
 - [Cloud Adoption Framework](https://learn.microsoft.com/azure/cloud-adoption-framework/)
 - [Well-Architected Framework](https://learn.microsoft.com/azure/well-architected/)
 - [Enterprise-Scale GitHub Repository](https://github.com/Azure/Enterprise-Scale)
-
-**AgentX Reference**
-- [AgentX Repository](https://github.com/jnPiyush/AgentX)
-- [AgentX Agent Specification](https://github.com/jnPiyush/AgentX/blob/master/.github/agents/)
-- [AgentX Skills Library](https://github.com/jnPiyush/AgentX/blob/master/Skills.md)
 
 **Industry Standards**
 - [MADR (Markdown Any Decision Records)](https://adr.github.io/madr/)
