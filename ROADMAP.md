@@ -1,7 +1,7 @@
 # ALZ Agent v1.0 - Development Roadmap
 
-> **Status**: 📝 Planning & Scaffolding Complete  
-> **Next Phase**: 🚧 Implementation (TypeScript development)  
+> **Status**: � Phase 2 Substantially Complete  
+> **Next Phase**: 🧪 Phase 3 Testing & Validation  
 > **Target GA**: Q2 2026
 
 ---
@@ -28,42 +28,54 @@
 
 ---
 
-## 🚧 Phase 2: Core Implementation (In Progress)
+## � Phase 2: Core Implementation (Substantially Complete)
 
 **Duration**: Weeks 2-8  
-**Status**: 🚧 **IN PROGRESS**
+**Status**: ✅ **CORE COMPLETE** - documentation generator + checkov + scenario tests deferred
 
 ### Week 2-3: Agent Core
-- [ ] Implement `handler.ts` with command routing (`/design`, `/validate`, `/generate`, `/diagram`)
-- [ ] Implement `phase-pipeline.ts` state machine with gate validation
-- [ ] Implement `conversation-manager.ts` session persistence
-- [ ] Unit tests for state management (≥80% coverage)
+- [x] Implement `handler.ts` with command routing (`/design`, `/validate`, `/generate`, `/diagram`, **plus `/status` and `/deploy`**)
+- [x] Implement `phase-pipeline.ts` state machine with gate validation
+- [x] Implement `conversation-manager.ts` session persistence
+- [~] Unit tests for state management (12 tests passing across 3 suites; coverage measurement not yet wired up)
 
 ### Week 4-5: RAG Engine & MCP Integration
-- [ ] Implement `rag-engine.ts` with LangChain vector store
-- [ ] Integrate MCP clients (microsoft-docs, azure Resource Graph, bicep)
-- [ ] Build retrieval pipeline (query → embed → retrieve → rerank)
-- [ ] Test MCP connectivity and fallback handling
+- [x] Implement `rag-engine.ts` (**BM25 over markdown** - chosen over LangChain vector store for zero-dependency, no-API-key operation)
+- [x] Integrate Azure MCP (**via `vscode.lm.tools` API** - lights up `azmcp-bicepschema`, `wellarchitectedframework`, `policy`, `resource_graph`, etc. when the Azure MCP Server extension is installed)
+- [x] Build retrieval pipeline (query → tokenize → BM25 score → top-K → inject as `# Retrieved knowledge` block in system prompt)
+- [x] MCP connectivity with graceful fallback (`discoverTools()` returns `[]` when extension is absent)
+- [ ] Optional: dedicated `microsoft-docs` MCP server integration (currently covered by RAG over local docs)
 
 ### Week 6-7: Generators
-- [ ] Implement `adr-generator.ts` (MADR template + decision tree logic)
-- [ ] Implement `iac-generator.ts` (Bicep/Terraform with Azure Verified Modules)
-- [ ] Implement `diagram-generator.ts` (Mermaid for management groups + network topology)
-- [ ] Implement `documentation-generator.ts` (runbooks, glossaries)
+- [x] Implement `adr-generator.ts` (LLM-driven, MADR template)
+- [x] Implement `iac-generator.ts` (Bicep + Terraform, LLM-driven)
+- [x] Implement `diagram-generator.ts` (Mermaid)
+- [ ] Implement `documentation-generator.ts` (runbooks, glossaries) **<- NOT YET BUILT**
 - [ ] Integration tests for full artifact generation pipeline
 
 ### Week 8: Validators
-- [ ] Implement `alz-validator.ts` (syntax + security + best practices)
-- [ ] Integrate checkov for security scanning
-- [ ] Integrate `az bicep build` and `terraform validate`
-- [ ] Load validation rules from `validation/rules/*.json`
+- [x] Implement `alz-validator.ts` (syntax + 7 security/best-practice heuristics + scoring)
+- [x] Integrate `az bicep build` for syntax validation - **plus Bicep extension `bicep.build` command as preferred path**
+- [ ] Integrate **Checkov** for security scanning (recommended in `.vscode/extensions.json`, not yet invoked)
+- [ ] `terraform validate` integration (currently a stubbed warning)
+- [ ] Load validation rules from `validation/rules/*.json` (rules are currently inline in `RULES` array)
 - [ ] Test against 100 ALZ scenarios from evaluation dataset
+
+### Bonus Work (Beyond Original Plan)
+- [x] **`/status` command** - reports companion extension install state, Azure CLI sign-in, MCP tool count
+- [x] **`/deploy` command** - `az deployment sub create` end-to-end with Bicep build pre-check
+- [x] **`ExtensionIntegrations` helper** - centralised proxy to Bicep extension, Azure CLI, Azure Resources, MCP
+- [x] **`extensionDependencies` + `extensionPack`** - auto-installs Copilot Chat, Bicep, Azure MCP
+- [x] **`.vscode/extensions.json`** - recommends 10 companion extensions to contributors
+- [x] **VSIX packaging** - `alz-agent-1.0.0.vsix` (39.6 KB, lean via `.vscodeignore`)
+- [x] **Real LLM integration** via `vscode.lm` API (no API keys; uses user's Copilot entitlement)
+- [x] **Tool-call loop** in `LlmService.streamChat()` - 5-round cap, handles `LanguageModelToolCallPart` end-to-end
 
 ### Exit Criteria
 - ✅ All 7 phases executable end-to-end
-- ✅ ≥80% unit test coverage
-- ✅ ≥90% accuracy on evaluation dataset (50 scenarios)
-- ✅ ≥90/100 security scan score on generated IaC
+- ⚠️ ≥80% unit test coverage **(coverage tooling not wired up; 12 tests passing)**
+- 🔜 ≥90% accuracy on evaluation dataset **(deferred to Phase 3)**
+- 🔜 ≥90/100 security scan score on generated IaC **(deferred to Phase 3)**
 
 ---
 
@@ -195,20 +207,28 @@
 
 ---
 
-## 🛠️ Current Sprint (Week 2)
+## 🛠️ Current Sprint
+
+### Recently Shipped
+1. ✅ Tier 1 extension integration (`ExtensionIntegrations` helper)
+2. ✅ `/status` and `/deploy` chat commands
+3. ✅ Azure MCP tool calling via `vscode.lm.tools`
+4. ✅ BM25 RAG over docs/prompts/workspace markdown
+5. ✅ VSIX packaging at 39.6 KB
 
 ### Active Work Items
-1. **Implement handler.ts** - Main entry point for @alz chat participant
-2. **Implement phase-pipeline.ts** - State machine for 7-phase workflow
-3. **Implement conversation-manager.ts** - Session persistence
-4. **Write unit tests** - Target ≥80% coverage for agent core
+1. **`documentation-generator.ts`** - runbooks + glossaries from captured requirements
+2. **Checkov / PSRule integration** - invoke after `/generate` for deeper security scanning
+3. **`terraform validate`** - real syntax validation for `.tf` outputs
+4. **External rule files** - move heuristic rules from inline `RULES[]` to `validation/rules/*.json`
+5. **Coverage tooling** - wire up `jest --coverage` and enforce ≥80% threshold
 
 ### Blockers
-- None currently
+- None
 
 ### Next Up
-- Week 3: Complete agent core implementation
-- Week 4: Begin RAG engine and MCP integration
+- Phase 3: 100-scenario evaluation dataset run
+- Phase 4: Marketplace publish prep (publisher account, icon, gallery banner)
 
 ---
 
