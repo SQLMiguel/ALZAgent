@@ -12,6 +12,7 @@ import { ADRGenerator } from '../generators/adr-generator';
 import { IaCGenerator } from '../generators/iac-generator';
 import { DiagramGenerator } from '../generators/diagram-generator';
 import { ALZValidator } from '../validation/alz-validator';
+import { ExtensionIntegrations } from '../integrations/extension-integrations';
 
 export class ALZAgentHandler {
   private conversationManager: ConversationManager;
@@ -55,6 +56,10 @@ export class ALZAgentHandler {
         await this.handleGenerateCommand(request, session, stream, token);
       } else if (command === 'diagram') {
         await this.handleDiagramCommand(request, session, stream, token);
+      } else if (command === 'status') {
+        await this.handleStatusCommand(stream);
+      } else if (command === 'deploy') {
+        await this.handleDeployCommand(request, stream, token);
       } else {
         await this.handleConversation(request, session, stream, token);
       }
@@ -253,6 +258,100 @@ export class ALZAgentHandler {
 
     if (assistantText.length > 0) {
       this.conversationManager.appendMessage(session, 'assistant', assistantText);
+    }
+  }
+
+  /**
+   * `/status` - report which Tier 1 companion extensions are present and
+   * whether the user is signed in to Azure CLI. Useful for triage.
+   */
+  private async handleStatusCommand(stream: vscode.ChatResponseStream): Promise<void> {
+    stream.markdown('## \ud83d\udd0c Companion Extension Status\n\n');
+    const statuses = ExtensionIntegrations.getStatus();
+    stream.markdown('| Extension | Installed | Active |\n|---|---|---|\n');
+    for (const s of statuses) {
+      const inst = s.installed ? '\u2705' : '\u274c';
+      const act = s.active ? '\u2705' : '\u2014';
+      stream.markdown(`| ${s.name} (\`${s.id}\`) | ${inst} | ${act} |\n`);
+    }
+
+    stream.markdown('\n## \u2601\ufe0f Azure CLI Context\n\n');
+    const ctx = await ExtensionIntegrations.getAzureContext();
+    if (ctx.loggedIn) {
+      stream.markdown(
+        `- \u2705 Signed in as **${ctx.user}**\n` +
+          `- Subscription: \`${ctx.subscriptionName}\` (${ctx.subscriptionId})\n` +
+          `- Tenant: \`${ctx.tenantId}\`\n`
+      );
+    } else {
+      stream.markdown(`- \u26a0\ufe0f ${ctx.error}\n`);
+    }
+
+    const tools = this.llm.discoverTools('azure');
+    stream.markdown(`\n## \ud83e\uddf0 Azure MCP Tools\n\n- ${tools.length} tool(s) discovered\n`);
+    if (tools.length > 0 && tools.length <= 12) {
+      for (const t of tools) {
+        stream.markdown(`  - \`${t.name}\`\n`);
+      }
+    }
+  }
+
+  /**
+   * `/deploy` - deploy a generated Bicep template to the user's current
+   * subscription. Format: `/deploy <bicep-file> <location>`. Falls back to
+   * `infrastructure/bicep/main.bicep` and `eastus` when omitted.
+   */
+  private async handleDeployCommand(
+    request: vscode.ChatRequest,
+    stream: vscode.ChatResponseStream,
+    _token: vscode.CancellationToken
+  ): Promise<void> {
+    stream.markdown('## \ud83d\ude80 Deploy Landing Zone\n\n');
+
+    const args = (request.prompt ?? '').trim().split(/\s+/).filter(Boolean);
+    let templateArg = args[0] ?? 'infrastructure/bicep/main.bicep';
+    const location = args[1] ?? 'eastus';
+
+    const wsFolders = vscode.workspace.workspaceFolders;
+    if (!wsFolders || wsFolders.length === 0) {
+      stream.markdown('\u274c No workspace open.\n');
+      return;
+    }
+    const root = wsFolders[0].uri.fsPath;
+    const absPath = templateArg.match(/^[a-zA-Z]:\\|^\//)
+      ? templateArg
+      : `${root}/${templateArg}`.replace(/\\/g, '/');
+
+    stream.markdown(`- Template: \`${templateArg}\`\n- Location: \`${location}\`\n\n`);
+
+    stream.progress('Checking Azure sign-in...');
+    const ctx = await ExtensionIntegrations.getAzureContext();
+    if (!ctx.loggedIn) {
+      stream.markdown(`\u274c ${ctx.error}\n\nRun \`az login\` then retry.\n`);
+      return;
+    }
+    stream.markdown(
+      `\u2705 Signed in as **${ctx.user}** -> subscription \`${ctx.subscriptionName}\`\n\n`
+    );
+
+    stream.progress('Validating template...');
+    const buildOutcome = await ExtensionIntegrations.buildBicep(absPath);
+    if (!buildOutcome.ok) {
+      stream.markdown(
+        `\u274c Template build failed (${buildOutcome.via}): ${buildOutcome.message}\n`
+      );
+      return;
+    }
+    stream.markdown(`\u2705 Template valid (${buildOutcome.via}).\n\n`);
+
+    stream.progress('Deploying to subscription...');
+    const result = await ExtensionIntegrations.deployBicepSubscription(absPath, location);
+    if (result.ok) {
+      stream.markdown('\u2705 **Deployment succeeded.**\n\n');
+      stream.markdown('```json\n' + result.output.slice(0, 4000) + '\n```\n');
+    } else {
+      stream.markdown('\u274c **Deployment failed.**\n\n');
+      stream.markdown('```\n' + (result.error ?? 'unknown') + '\n```\n');
     }
   }
 

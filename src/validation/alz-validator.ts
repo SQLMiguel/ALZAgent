@@ -1,15 +1,12 @@
 /**
  * ALZ Validator
- * Real validation backed by the Azure CLI (az bicep build) and a lightweight
- * best-practice heuristic pass. If the Azure CLI is not on PATH, syntax
- * validation degrades gracefully to a warning.
+ * Real validation backed by the Bicep extension (preferred) or the Azure CLI
+ * (`az bicep build`) plus a lightweight best-practice heuristic pass. If
+ * neither is available, syntax validation degrades gracefully to a warning.
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import * as fs from 'fs/promises';
-
-const execAsync = promisify(exec);
+import { ExtensionIntegrations } from '../integrations/extension-integrations';
 
 export interface ValidationResult {
   syntaxValid: boolean;
@@ -128,24 +125,18 @@ export class ALZValidator {
   }
 
   private async validateBicepSyntax(filePath: string, issues: string[]): Promise<boolean> {
-    try {
-      // `az bicep build --stdout` exits non-zero on syntax error.
-      await execAsync(`az bicep build --file "${filePath}" --stdout`, {
-        timeout: 30000,
-      });
+    const outcome = await ExtensionIntegrations.buildBicep(filePath);
+    if (outcome.ok && outcome.via === 'none') {
+      issues.push(
+        '[SYN] No Bicep extension or Azure CLI found; syntax check skipped.'
+      );
       return true;
-    } catch (err) {
-      const e = err as { stderr?: string; message?: string };
-      const stderr = e.stderr ?? e.message ?? 'unknown bicep error';
-      if (/'az' is not recognized|command not found/i.test(stderr)) {
-        issues.push(
-          '[SYN] Azure CLI not on PATH; install Azure CLI + Bicep to enable syntax validation.'
-        );
-        return true; // Don't fail the file just because az is missing.
-      }
-      issues.push(`[SYN] Bicep syntax error: ${stderr.split('\n').slice(0, 3).join(' ')}`);
+    }
+    if (!outcome.ok) {
+      issues.push(`[SYN] Bicep syntax error (${outcome.via}): ${outcome.message}`);
       return false;
     }
+    return true;
   }
 
   private async validateTerraformSyntax(_filePath: string, issues: string[]): Promise<boolean> {

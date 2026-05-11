@@ -39,6 +39,11 @@ export const commands = {
   executeCommand: jest.fn()
 };
 
+export const extensions = {
+  getExtension: jest.fn(() => undefined),
+  all: [] as any[]
+};
+
 export const chat = {
   createChatParticipant: jest.fn()
 };

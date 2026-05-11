@@ -63,6 +63,14 @@
           {
             "name": "diagram",
             "description": "Create architecture diagrams"
+          },
+          {
+            "name": "status",
+            "description": "Report companion extension and Azure CLI status"
+          },
+          {
+            "name": "deploy",
+            "description": "Deploy a Bicep template to your Azure subscription. Usage: /deploy <template> <location>"
           }
         ]
       }
