@@ -11,6 +11,7 @@ import { RAGEngine, RetrievedChunk } from '../rag/rag-engine';
 import { ADRGenerator } from '../generators/adr-generator';
 import { IaCGenerator } from '../generators/iac-generator';
 import { DiagramGenerator } from '../generators/diagram-generator';
+import { DocumentationGenerator } from '../generators/documentation-generator';
 import { ALZValidator } from '../validation/alz-validator';
 import { ExtensionIntegrations } from '../integrations/extension-integrations';
 
@@ -22,6 +23,7 @@ export class ALZAgentHandler {
   private adrGenerator: ADRGenerator;
   private iacGenerator: IaCGenerator;
   private diagramGenerator: DiagramGenerator;
+  private docGenerator: DocumentationGenerator;
   private validator: ALZValidator;
   private extensionUri: vscode.Uri;
   private systemPromptCache?: string;
@@ -35,7 +37,10 @@ export class ALZAgentHandler {
     this.adrGenerator = new ADRGenerator(this.llm);
     this.iacGenerator = new IaCGenerator(this.llm);
     this.diagramGenerator = new DiagramGenerator(this.llm);
-    this.validator = new ALZValidator();
+    this.docGenerator = new DocumentationGenerator(this.llm);
+    this.validator = new ALZValidator(
+      vscode.Uri.joinPath(context.extensionUri, 'validation', 'rules').fsPath
+    );
   }
 
   async handleRequest(
@@ -170,6 +175,13 @@ export class ALZAgentHandler {
       const filePath = `${dirPath}/${template.filename}`;
       await this.writeFile(filePath, template.content);
       stream.markdown(`- \u2705 Created [${template.filename}](${filePath})\n`);
+    }
+
+    stream.markdown('\n### Generating Operational Documentation...\n');
+    const docs = await this.docGenerator.generate(session.requirements, _token);
+    for (const doc of docs) {
+      await this.writeFile(doc.path, doc.content);
+      stream.markdown(`- \u2705 Created [${doc.label}](${doc.path})\n`);
     }
   }
 

@@ -1,0 +1,44 @@
+{
+  "rules": [
+    {
+      "id": "SEC001",
+      "pattern": "allowBlobPublicAccess\\s*:\\s*true",
+      "flags": "i",
+      "severity": "security",
+      "weight": 25,
+      "message": "Storage account allows public blob access."
+    },
+    {
+      "id": "SEC002",
+      "pattern": "supportsHttpsTrafficOnly\\s*:\\s*false",
+      "flags": "i",
+      "severity": "security",
+      "weight": 20,
+      "message": "Storage account allows non-HTTPS traffic."
+    },
+    {
+      "id": "SEC003",
+      "pattern": "minimumTlsVersion\\s*:\\s*['\"]TLS1_[01]['\"]",
+      "flags": "i",
+      "severity": "security",
+      "weight": 15,
+      "message": "Resource uses TLS 1.0 or 1.1; require TLS 1.2 or higher."
+    },
+    {
+      "id": "SEC004",
+      "pattern": "publicNetworkAccess\\s*:\\s*['\"]Enabled['\"]",
+      "flags": "i",
+      "severity": "security",
+      "weight": 10,
+      "message": "Resource has public network access enabled."
+    },
+    {
+      "id": "SEC005",
+      "pattern": "(password|secret|apiKey|connectionString)\\s*=\\s*['\"][^'\"@$]+['\"]",
+      "flags": "i",
+      "severity": "security",
+      "weight": 30,
+      "message": "Possible hardcoded secret. Use Key Vault or secure parameters."
+    }
+  ]
+}

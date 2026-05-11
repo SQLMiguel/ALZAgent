@@ -23,5 +23,6 @@ CONTRIBUTING.md
 evaluation/**
 infrastructure/**
 validation/**
+!validation/rules/**
 docs/artifacts/**
 *.vsix

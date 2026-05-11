@@ -1,0 +1,20 @@
+{
+  "rules": [
+    {
+      "id": "BP001",
+      "pattern": "^(?!.*tags\\s*[:=])",
+      "flags": "s",
+      "severity": "best-practice",
+      "weight": 10,
+      "message": "No tags defined. Add at least Environment, Owner, CostCenter."
+    },
+    {
+      "id": "BP002",
+      "pattern": "^(?!.*diagnosticSettings)",
+      "flags": "s",
+      "severity": "best-practice",
+      "weight": 10,
+      "message": "No diagnostic settings defined for any resource."
+    }
+  ]
+}

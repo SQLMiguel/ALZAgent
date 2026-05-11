@@ -52,6 +52,15 @@ export interface DeploymentOutcome {
   error?: string;
 }
 
+export interface CliRunOutcome {
+  /** True if the underlying CLI is available AND exited cleanly. */
+  ok: boolean;
+  /** True if the CLI binary was not found. */
+  missing: boolean;
+  stdout: string;
+  stderr: string;
+}
+
 export class ExtensionIntegrations {
   /** Snapshot the install/active state of every Tier 1 companion. */
   static getStatus(): ExtensionStatus[] {
@@ -175,6 +184,75 @@ export class ExtensionIntegrations {
       return {
         loggedIn: false,
         error: 'Not signed in. Run `az login` in a terminal.',
+      };
+    }
+  }
+
+  /**
+   * Run `terraform validate` against the directory containing a .tf file.
+   * Initializes if needed (via `terraform init -backend=false`) so this
+   * works on freshly generated modules without provider downloads.
+   */
+  static async validateTerraform(dirPath: string): Promise<CliRunOutcome> {
+    try {
+      await execAsync(`terraform -chdir="${dirPath}" init -backend=false -input=false`, {
+        timeout: 60_000,
+      });
+    } catch (err) {
+      const e = err as { stderr?: string; message?: string };
+      const stderr = e.stderr ?? e.message ?? '';
+      if (/not recognized|command not found|ENOENT/i.test(stderr)) {
+        return { ok: false, missing: true, stdout: '', stderr };
+      }
+      // Init failure is informative but we still try validate.
+    }
+    try {
+      const { stdout, stderr } = await execAsync(
+        `terraform -chdir="${dirPath}" validate -no-color`,
+        { timeout: 30_000 }
+      );
+      return { ok: true, missing: false, stdout, stderr };
+    } catch (err) {
+      const e = err as { stderr?: string; stdout?: string; message?: string };
+      const stderr = e.stderr ?? e.message ?? '';
+      if (/not recognized|command not found|ENOENT/i.test(stderr)) {
+        return { ok: false, missing: true, stdout: '', stderr };
+      }
+      return {
+        ok: false,
+        missing: false,
+        stdout: e.stdout ?? '',
+        stderr,
+      };
+    }
+  }
+
+  /**
+   * Run Checkov against a Bicep/Terraform file or directory. Returns the
+   * raw JSON results so callers can extract counts and findings.
+   */
+  static async runCheckov(targetPath: string): Promise<CliRunOutcome> {
+    // -o json => structured output; --soft-fail => exit 0 even on findings
+    // so we can read the report instead of treating it as a failure.
+    const cmd = `checkov -f "${targetPath}" -o json --soft-fail --quiet`;
+    const cmdDir = `checkov -d "${targetPath}" -o json --soft-fail --quiet`;
+    try {
+      const { stdout, stderr } = await execAsync(
+        targetPath.match(/\.(bicep|tf|json|yaml|yml)$/i) ? cmd : cmdDir,
+        { timeout: 120_000, maxBuffer: 10 * 1024 * 1024 }
+      );
+      return { ok: true, missing: false, stdout, stderr };
+    } catch (err) {
+      const e = err as { stderr?: string; stdout?: string; message?: string };
+      const stderr = e.stderr ?? e.message ?? '';
+      if (/not recognized|command not found|ENOENT/i.test(stderr)) {
+        return { ok: false, missing: true, stdout: '', stderr };
+      }
+      return {
+        ok: false,
+        missing: false,
+        stdout: e.stdout ?? '',
+        stderr,
       };
     }
   }
