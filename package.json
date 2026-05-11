@@ -31,6 +31,13 @@
   "activationEvents": [
     "onStartupFinished"
   ],
+  "extensionDependencies": [
+    "GitHub.copilot-chat"
+  ],
+  "extensionPack": [
+    "ms-azuretools.vscode-bicep",
+    "ms-azuretools.vscode-azure-mcp-server"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "chatParticipants": [

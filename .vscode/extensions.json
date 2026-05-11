@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "GitHub.copilot-chat",
+    "ms-azuretools.vscode-bicep",
+    "ms-azuretools.vscode-azure-mcp-server",
+    "ms-azuretools.vscode-azureresourcegroups",
+    "ms-vscode.azurecli",
+    "bewhite.psrule-vscode",
+    "bridgecrew.checkov",
+    "hashicorp.terraform",
+    "bierner.markdown-mermaid",
+    "yzhang.markdown-all-in-one"
+  ]
+}
