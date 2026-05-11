@@ -1,6 +1,6 @@
 # ALZ Agent v1.0 - Development Roadmap
 
-> **Status**: � Phase 2 Substantially Complete  
+> **Status**: ✅ Phase 2 Complete  
 > **Next Phase**: 🧪 Phase 3 Testing & Validation  
 > **Target GA**: Q2 2026
 
@@ -28,10 +28,10 @@
 
 ---
 
-## � Phase 2: Core Implementation (Substantially Complete)
+## ✅ Phase 2: Core Implementation (Complete)
 
 **Duration**: Weeks 2-8  
-**Status**: ✅ **CORE COMPLETE** - documentation generator + checkov + scenario tests deferred
+**Status**: ✅ **COMPLETE** - only coverage tooling + 100-scenario eval run deferred to Phase 3
 
 ### Week 2-3: Agent Core
 - [x] Implement `handler.ts` with command routing (`/design`, `/validate`, `/generate`, `/diagram`, **plus `/status` and `/deploy`**)
@@ -50,16 +50,16 @@
 - [x] Implement `adr-generator.ts` (LLM-driven, MADR template)
 - [x] Implement `iac-generator.ts` (Bicep + Terraform, LLM-driven)
 - [x] Implement `diagram-generator.ts` (Mermaid)
-- [ ] Implement `documentation-generator.ts` (runbooks, glossaries) **<- NOT YET BUILT**
-- [ ] Integration tests for full artifact generation pipeline
+- [x] Implement `documentation-generator.ts` (overview, deployment runbook, IR runbook, glossary; wired into `/generate`)
+- [ ] Integration tests for full artifact generation pipeline (deferred to Phase 3)
 
 ### Week 8: Validators
-- [x] Implement `alz-validator.ts` (syntax + 7 security/best-practice heuristics + scoring)
+- [x] Implement `alz-validator.ts` (syntax + security/best-practice heuristics + scoring)
 - [x] Integrate `az bicep build` for syntax validation - **plus Bicep extension `bicep.build` command as preferred path**
-- [ ] Integrate **Checkov** for security scanning (recommended in `.vscode/extensions.json`, not yet invoked)
-- [ ] `terraform validate` integration (currently a stubbed warning)
-- [ ] Load validation rules from `validation/rules/*.json` (rules are currently inline in `RULES` array)
-- [ ] Test against 100 ALZ scenarios from evaluation dataset
+- [x] Integrate **Checkov** for security scanning (`ExtensionIntegrations.runCheckov`, JSON parsed, score deduction; skips silently when not on PATH)
+- [x] `terraform validate` integration (`terraform init -backend=false` + `validate -no-color`, runs against `path.dirname(filePath)`)
+- [x] Load validation rules from `validation/rules/*.json` (security.json + best-practices.json; bundled in VSIX, fallback to inline rules for tests)
+- [ ] Test against 100 ALZ scenarios from evaluation dataset (deferred to Phase 3)
 
 ### Bonus Work (Beyond Original Plan)
 - [x] **`/status` command** - reports companion extension install state, Azure CLI sign-in, MCP tool count
@@ -67,7 +67,7 @@
 - [x] **`ExtensionIntegrations` helper** - centralised proxy to Bicep extension, Azure CLI, Azure Resources, MCP
 - [x] **`extensionDependencies` + `extensionPack`** - auto-installs Copilot Chat, Bicep, Azure MCP
 - [x] **`.vscode/extensions.json`** - recommends 10 companion extensions to contributors
-- [x] **VSIX packaging** - `alz-agent-1.0.0.vsix` (39.6 KB, lean via `.vscodeignore`)
+- [x] **VSIX packaging** - `alz-agent-1.0.0.vsix` (42.6 KB, lean via `.vscodeignore`; ships `validation/rules/`)
 - [x] **Real LLM integration** via `vscode.lm` API (no API keys; uses user's Copilot entitlement)
 - [x] **Tool-call loop** in `LlmService.streamChat()` - 5-round cap, handles `LanguageModelToolCallPart` end-to-end
 
@@ -209,19 +209,22 @@
 
 ## 🛠️ Current Sprint
 
-### Recently Shipped
-1. ✅ Tier 1 extension integration (`ExtensionIntegrations` helper)
-2. ✅ `/status` and `/deploy` chat commands
-3. ✅ Azure MCP tool calling via `vscode.lm.tools`
-4. ✅ BM25 RAG over docs/prompts/workspace markdown
-5. ✅ VSIX packaging at 39.6 KB
+### Recently Shipped (commit `e20aa74`)
+1. ✅ `DocumentationGenerator` - 4 LLM-grounded ops docs (overview, deployment runbook, IR runbook, glossary)
+2. ✅ Real `terraform validate` via `ExtensionIntegrations.validateTerraform`
+3. ✅ Checkov integration via `ExtensionIntegrations.runCheckov` (JSON parse, score deduction)
+4. ✅ External rule files at `validation/rules/{security,best-practices}.json` (bundled in VSIX)
+5. ✅ Tier 1 extension integration (`ExtensionIntegrations` helper)
+6. ✅ `/status` and `/deploy` chat commands
+7. ✅ Azure MCP tool calling via `vscode.lm.tools`
+8. ✅ BM25 RAG over docs/prompts/workspace markdown
 
-### Active Work Items
-1. **`documentation-generator.ts`** - runbooks + glossaries from captured requirements
-2. **Checkov / PSRule integration** - invoke after `/generate` for deeper security scanning
-3. **`terraform validate`** - real syntax validation for `.tf` outputs
-4. **External rule files** - move heuristic rules from inline `RULES[]` to `validation/rules/*.json`
-5. **Coverage tooling** - wire up `jest --coverage` and enforce ≥80% threshold
+### Active Work Items (Phase 3 prep)
+1. **Coverage tooling** - wire up `jest --coverage` and enforce ≥80% threshold
+2. **Integration test suite** - end-to-end fixtures driving the full `/design` → `/generate` pipeline
+3. **100-scenario evaluation dataset** - greenfield 10/50/200, brownfield, hub-spoke vs vWAN, compliance overlays
+4. **CI/CD** - GitHub Actions workflow running `npm test`, `npm run compile`, `vsce package` on PR
+5. **Optional**: dedicated `microsoft-docs` MCP server (currently covered by RAG over local docs)
 
 ### Blockers
 - None
@@ -232,6 +235,6 @@
 
 ---
 
-**Last Updated**: 2026-05-11  
+**Last Updated**: 2026-05-11 (Phase 2 closeout - commit `e20aa74`)  
 **Maintained By**: ALZ Agent Team  
 **Questions?** Open a [GitHub Discussion](https://github.com/SQLMiguel/ALZAgent/discussions)
