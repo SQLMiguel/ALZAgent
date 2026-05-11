@@ -5,6 +5,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.85.0+-blue.svg)](https://code.visualstudio.com/)
 [![GitHub Copilot](https://img.shields.io/badge/GitHub%20Copilot-Required-green.svg)](https://github.com/features/copilot)
+[![CI](https://github.com/SQLMiguel/ALZAgent/actions/workflows/ci.yml/badge.svg)](https://github.com/SQLMiguel/ALZAgent/actions/workflows/ci.yml)
 
 ## Overview
 

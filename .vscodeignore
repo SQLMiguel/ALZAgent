@@ -25,4 +25,5 @@ infrastructure/**
 validation/**
 !validation/rules/**
 docs/artifacts/**
+coverage/**
 *.vsix
