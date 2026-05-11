@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { ConversationManager, Session } from './conversation-manager';
 import { PhasePipeline, Phase } from './phase-pipeline';
 import { LlmService, ChatTurn } from './llm-service';
-import { RAGEngine } from '../rag/rag-engine';
+import { RAGEngine, RetrievedChunk } from '../rag/rag-engine';
 import { ADRGenerator } from '../generators/adr-generator';
 import { IaCGenerator } from '../generators/iac-generator';
 import { DiagramGenerator } from '../generators/diagram-generator';
@@ -30,7 +30,7 @@ export class ALZAgentHandler {
     this.conversationManager = new ConversationManager(context);
     this.phasePipeline = new PhasePipeline();
     this.llm = new LlmService();
-    this.ragEngine = new RAGEngine();
+    this.ragEngine = new RAGEngine(context.extensionUri);
     this.adrGenerator = new ADRGenerator(this.llm);
     this.iacGenerator = new IaCGenerator(this.llm);
     this.diagramGenerator = new DiagramGenerator(this.llm);
@@ -219,8 +219,20 @@ export class ALZAgentHandler {
 
     this.conversationManager.appendMessage(session, 'user', userMessage);
 
-    // RAG hook - currently a no-op stub but reserved for retrieval grounding.
-    void this.ragEngine.retrieve(userMessage, session);
+    // RAG: retrieve top-K relevant chunks from local docs/prompts/workspace
+    // and prepend them to the system prompt so the model has grounded context.
+    let groundedSystemPrompt = systemPrompt;
+    let retrieved: RetrievedChunk[] = [];
+    try {
+      retrieved = await this.ragEngine.retrieve(userMessage, session, 4);
+    } catch (err) {
+      console.error('[ALZ Agent] RAG retrieval failed:', err);
+    }
+    if (retrieved.length > 0) {
+      stream.progress(`Grounded with ${retrieved.length} knowledge chunk(s)`);
+      groundedSystemPrompt =
+        RAGEngine.formatContext(retrieved) + '\n' + systemPrompt;
+    }
 
     // Discover Azure MCP tools (if the user has the Azure MCP extension
     // installed) so the model can ground its answers in live Azure context:
@@ -231,7 +243,7 @@ export class ALZAgentHandler {
     }
 
     const assistantText = await this.llm.streamChat(
-      systemPrompt,
+      groundedSystemPrompt,
       history,
       userMessage,
       stream,
