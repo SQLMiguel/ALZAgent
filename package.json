@@ -1,0 +1,167 @@
+{
+  "name": "alz-agent",
+  "displayName": "Landing Zone Provisioning Agent",
+  "description": "AI-powered conversational agent for Azure Landing Zone design and deployment",
+  "version": "1.0.0",
+  "publisher": "alz-agent-team",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SQLMiguel/ALZAgent"
+  },
+  "engines": {
+    "vscode": "^1.85.0",
+    "node": ">=18.0.0"
+  },
+  "categories": [
+    "AI",
+    "Azure",
+    "Snippets",
+    "Other"
+  ],
+  "keywords": [
+    "azure",
+    "landing-zone",
+    "enterprise-scale",
+    "bicep",
+    "terraform",
+    "copilot",
+    "ai"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "alz-agent.alz",
+        "name": "alz",
+        "fullName": "Landing Zone Provisioning Agent",
+        "description": "Expert guidance for Azure Landing Zone design and deployment",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "design",
+            "description": "Start a new landing zone design session"
+          },
+          {
+            "name": "validate",
+            "description": "Validate architecture against best practices"
+          },
+          {
+            "name": "generate",
+            "description": "Generate infrastructure-as-code templates"
+          },
+          {
+            "name": "diagram",
+            "description": "Create architecture diagrams"
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "alz-agent.startDesign",
+        "title": "ALZ: Start Design Session",
+        "category": "Landing Zone Agent"
+      },
+      {
+        "command": "alz-agent.validateArchitecture",
+        "title": "ALZ: Validate Architecture",
+        "category": "Landing Zone Agent"
+      },
+      {
+        "command": "alz-agent.generateBicep",
+        "title": "ALZ: Generate Bicep Templates",
+        "category": "Landing Zone Agent"
+      },
+      {
+        "command": "alz-agent.generateTerraform",
+        "title": "ALZ: Generate Terraform Configuration",
+        "category": "Landing Zone Agent"
+      },
+      {
+        "command": "alz-agent.clearSession",
+        "title": "ALZ: Clear Session History",
+        "category": "Landing Zone Agent"
+      }
+    ],
+    "configuration": {
+      "title": "Landing Zone Provisioning Agent",
+      "properties": {
+        "alz-agent.mcpServers": {
+          "type": "object",
+          "default": {
+            "microsoft-docs": "https://mcp.microsoft.com/docs",
+            "azure": "local",
+            "bicep": "local",
+            "github": "https://api.github.com"
+          },
+          "description": "MCP server endpoints for documentation and tooling"
+        },
+        "alz-agent.preferredIaC": {
+          "type": "string",
+          "enum": [
+            "bicep",
+            "terraform",
+            "ask"
+          ],
+          "default": "ask",
+          "description": "Preferred infrastructure-as-code format"
+        },
+        "alz-agent.enableTelemetry": {
+          "type": "boolean",
+          "default": false,
+          "description": "Send anonymous usage data to improve the agent"
+        },
+        "alz-agent.validationLevel": {
+          "type": "string",
+          "enum": [
+            "strict",
+            "standard",
+            "permissive"
+          ],
+          "default": "standard",
+          "description": "Validation strictness for best practice checks"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src --ext ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "build": "npm run compile",
+    "deploy": "vsce package"
+  },
+  "dependencies": {
+    "ajv": "^8.12.0",
+    "axios": "^1.6.0",
+    "langchain": "^0.2.0",
+    "yaml": "^2.3.4"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/test-electron": "^2.3.0",
+    "@vscode/vsce": "^2.22.0",
+    "eslint": "^8.50.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.1.0",
+    "ts-loader": "^9.5.0",
+    "typescript": "^5.2.0",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.0"
+  }
+}
