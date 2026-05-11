@@ -91,4 +91,61 @@ export class LlmService {
     }
     return full;
   }
+
+  /**
+   * Non-streaming completion. Used by generators that need the full response
+   * before parsing (JSON extraction, file content production).
+   *
+   * @param systemPrompt The system / instructional prompt.
+   * @param userPrompt   The user request.
+   * @param token        Cancellation token.
+   * @returns The full assistant response, or '' if no model is available.
+   */
+  async complete(
+    systemPrompt: string,
+    userPrompt: string,
+    token: vscode.CancellationToken
+  ): Promise<string> {
+    const model = await this.selectModel();
+    if (!model) {
+      return '';
+    }
+    const messages: vscode.LanguageModelChatMessage[] = [
+      vscode.LanguageModelChatMessage.User(systemPrompt),
+      vscode.LanguageModelChatMessage.User(userPrompt),
+    ];
+    let full = '';
+    try {
+      const response = await model.sendRequest(messages, {}, token);
+      for await (const fragment of response.text) {
+        if (token.isCancellationRequested) {
+          break;
+        }
+        full += fragment;
+      }
+    } catch (err) {
+      console.error('[LlmService.complete] error:', err);
+    }
+    return full;
+  }
+
+  /**
+   * Extract the first fenced code block of a given language from text.
+   * Falls back to the first fenced block of any language, then to the raw
+   * input. Useful when the model wraps JSON / Bicep / Mermaid in fences.
+   */
+  static extractCodeBlock(text: string, language?: string): string {
+    if (language) {
+      const tagged = new RegExp('```' + language + '\\s*\\n([\\s\\S]*?)```', 'i');
+      const m = text.match(tagged);
+      if (m) {
+        return m[1].trim();
+      }
+    }
+    const any = text.match(/```[a-zA-Z0-9_-]*\s*\n([\s\S]*?)```/);
+    if (any) {
+      return any[1].trim();
+    }
+    return text.trim();
+  }
 }

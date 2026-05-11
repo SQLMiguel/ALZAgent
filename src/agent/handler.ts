@@ -31,9 +31,9 @@ export class ALZAgentHandler {
     this.phasePipeline = new PhasePipeline();
     this.llm = new LlmService();
     this.ragEngine = new RAGEngine();
-    this.adrGenerator = new ADRGenerator();
-    this.iacGenerator = new IaCGenerator();
-    this.diagramGenerator = new DiagramGenerator();
+    this.adrGenerator = new ADRGenerator(this.llm);
+    this.iacGenerator = new IaCGenerator(this.llm);
+    this.diagramGenerator = new DiagramGenerator(this.llm);
     this.validator = new ALZValidator();
   }
 
@@ -75,14 +75,33 @@ export class ALZAgentHandler {
   ): Promise<void> {
     await this.phasePipeline.transitionTo(Phase.DISCOVERY, session);
 
-    const questions = await this.loadPromptTemplate('discovery.md');
-    stream.markdown(questions);
-    this.conversationManager.appendMessage(session, 'assistant', questions);
+    const userInput = (request.prompt ?? '').trim();
 
-    if (request.prompt && request.prompt.trim().length > 0) {
-      stream.markdown('\n\n---\n\n');
-      await this.handleConversation(request, session, stream, token);
+    if (userInput.length === 0) {
+      // First /design call - present the questionnaire.
+      const questions = await this.loadPromptTemplate('discovery.md');
+      stream.markdown(questions);
+      this.conversationManager.appendMessage(session, 'assistant', questions);
+      return;
     }
+
+    // User provided answers - extract structured requirements then synthesise.
+    stream.markdown('## \ud83d\udcdd Capturing requirements...\n\n');
+    const extracted = await this.extractRequirements(userInput, session, token);
+    if (extracted) {
+      session.requirements = { ...session.requirements, ...extracted };
+      stream.markdown(
+        '\u2705 Requirements captured. Run `@alz /generate` to produce ADRs ' +
+          'and IaC, or `@alz /diagram` for architecture diagrams.\n\n---\n\n'
+      );
+    } else {
+      stream.markdown(
+        '\u26a0\ufe0f Could not parse structured requirements; continuing in ' +
+          'conversational mode.\n\n---\n\n'
+      );
+    }
+
+    await this.handleConversation(request, session, stream, token);
   }
 
   private async handleValidateCommand(
@@ -123,7 +142,10 @@ export class ALZAgentHandler {
     }
 
     stream.markdown('### Generating Architecture Decision Records...\n');
-    const adrs = await this.adrGenerator.generateFromRequirements(session.requirements);
+    const adrs = await this.adrGenerator.generateFromRequirements(
+      session.requirements,
+      _token
+    );
     for (const adr of adrs) {
       const filePath = `docs/architecture/decisions/${adr.id}.md`;
       await this.writeFile(filePath, adr.content);
@@ -133,7 +155,11 @@ export class ALZAgentHandler {
     stream.markdown('\n### Generating Infrastructure-as-Code...\n');
     const iacFormat =
       vscode.workspace.getConfiguration('alz-agent').get<string>('preferredIaC') ?? 'bicep';
-    const templates = await this.iacGenerator.generate(session.requirements, iacFormat);
+    const templates = await this.iacGenerator.generate(
+      session.requirements,
+      iacFormat,
+      _token
+    );
     for (const template of templates) {
       const dirPath = iacFormat === 'bicep' ? 'infrastructure/bicep' : 'infrastructure/terraform';
       const filePath = `${dirPath}/${template.filename}`;
@@ -155,7 +181,7 @@ export class ALZAgentHandler {
       return;
     }
 
-    const diagrams = await this.diagramGenerator.generate(session.requirements);
+    const diagrams = await this.diagramGenerator.generate(session.requirements, _token);
     for (const diagram of diagrams) {
       const filePath = `docs/architecture/diagrams/${diagram.name}.mmd`;
       await this.writeFile(filePath, diagram.mermaidCode);
@@ -211,6 +237,49 @@ export class ALZAgentHandler {
 
   async clearSession(): Promise<void> {
     await this.conversationManager.clearSession();
+  }
+
+  /**
+   * Use the LLM to extract structured requirements from a free-text user
+   * answer to the discovery questionnaire. Returns null if the LLM is
+   * unavailable or the response cannot be parsed as JSON.
+   */
+  private async extractRequirements(
+    userInput: string,
+    _session: Session,
+    token: vscode.CancellationToken
+  ): Promise<Record<string, unknown> | null> {
+    const systemPrompt =
+      'You are an information-extraction tool. Read the user message containing ' +
+      'answers to an Azure Landing Zone discovery questionnaire and emit ONLY ' +
+      'a single JSON object inside a ```json fenced block. No commentary outside ' +
+      'the fence. Use null for unanswered fields.';
+
+    const userPrompt =
+      `# Schema (use exactly these top-level keys; nested objects are fine)\n` +
+      `{\n` +
+      `  "organisation": { "name": string|null, "tenant": string|null },\n` +
+      `  "scale": { "subscriptions": number|null, "workloads": number|null, "regions": string[]|null },\n` +
+      `  "compliance": string[]|null,\n` +
+      `  "identity": { "tenant": "existing"|"new"|null, "hybrid": boolean|null, "pim": boolean|null, "external": string[]|null },\n` +
+      `  "network": { "topology": "hub-spoke"|"virtual-wan"|"unsure"|null, "hybrid": "expressroute"|"vpn-site-to-site"|"both"|null, "dns": string|null, "egress": string|null, "addressSpaces": string[]|null },\n` +
+      `  "security": { "defenderPlans": string[]|null, "sentinel": boolean|null, "cmk": boolean|null, "tags": string[]|null, "diagnosticsDestination": string|null },\n` +
+      `  "platform": { "subscriptionModel": string|null, "archetypes": string[]|null, "workloads": string[]|null },\n` +
+      `  "ops": { "iac": "bicep"|"terraform"|null, "pipeline": string|null, "promotion": string|null, "budget": string|null }\n` +
+      `}\n\n` +
+      `# User answers\n${userInput}`;
+
+    const raw = await this.llm.complete(systemPrompt, userPrompt, token);
+    if (raw.trim().length === 0) {
+      return null;
+    }
+    const json = LlmService.extractCodeBlock(raw, 'json');
+    try {
+      return JSON.parse(json) as Record<string, unknown>;
+    } catch (err) {
+      console.error('[ALZ Agent] Could not parse extracted requirements:', err);
+      return null;
+    }
   }
 
   private async loadPromptTemplate(filename: string): Promise<string> {
