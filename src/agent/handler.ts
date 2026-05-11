@@ -222,12 +222,21 @@ export class ALZAgentHandler {
     // RAG hook - currently a no-op stub but reserved for retrieval grounding.
     void this.ragEngine.retrieve(userMessage, session);
 
+    // Discover Azure MCP tools (if the user has the Azure MCP extension
+    // installed) so the model can ground its answers in live Azure context:
+    // Bicep schemas, Well-Architected guidance, policy lookups, etc.
+    const tools = this.llm.discoverTools('azure');
+    if (tools.length > 0) {
+      stream.progress(`Using ${tools.length} Azure MCP tool(s) for grounding`);
+    }
+
     const assistantText = await this.llm.streamChat(
       systemPrompt,
       history,
       userMessage,
       stream,
-      token
+      token,
+      tools
     );
 
     if (assistantText.length > 0) {

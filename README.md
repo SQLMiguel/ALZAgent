@@ -44,10 +44,11 @@ Cloud architects spend **4-8 weeks** designing Azure Landing Zones, navigating 2
 
 ### Prerequisites
 
-- Visual Studio Code 1.85.0 or newer
+- Visual Studio Code 1.95.0 or newer
 - GitHub Copilot subscription (Individual, Business, or Enterprise)
 - Azure subscription (for testing generated templates)
 - PowerShell 7.4+ (Windows) or Bash (Linux/macOS)
+- **Optional**: [Azure MCP Server extension](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azure-mcp-server) - when installed, the agent automatically discovers and calls Azure MCP tools (Bicep schema lookup, Well-Architected guidance, policy queries, resource graph) during conversation for grounded, live answers.
 
 ### Installation
 

@@ -33,21 +33,47 @@ export class LlmService {
   }
 
   /**
-   * Stream a chat completion into the chat response stream.
+   * Discover Language Model Tools registered by other extensions, optionally
+   * filtered by a tag (e.g. "azure-mcp"). Tools become available to the model
+   * via tool calling.
    *
-   * @param systemPrompt The system / instructional prompt for the agent.
-   * @param history     Prior turns in the conversation (oldest first).
-   * @param userMessage The latest user message.
-   * @param stream      The chat response stream to write tokens into.
-   * @param token       Cancellation token from the chat request.
-   * @returns The full assistant response text (after streaming completes).
+   * @param tag Optional tag filter. If omitted, returns all tools.
+   */
+  discoverTools(tag?: string): vscode.LanguageModelChatTool[] {
+    const all = vscode.lm.tools ?? [];
+    const filtered = tag
+      ? all.filter((t) => t.tags?.includes(tag))
+      : all;
+    return filtered.map((t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema,
+    }));
+  }
+
+  /**
+   * Stream a chat completion with tool-calling support. The model may call
+   * any of the supplied tools; this method invokes them and feeds the results
+   * back, looping until the model produces a final text response (no more
+   * tool calls) or the iteration limit is reached.
+   *
+   * @param systemPrompt System / instructional prompt.
+   * @param history     Prior conversation turns.
+   * @param userMessage Latest user message.
+   * @param tools       Tools the model may call (use discoverTools()).
+   * @param stream      Chat response stream for streaming output.
+   * @param token       Cancellation token.
+   * @param maxRounds   Maximum tool-call rounds (safety cap; default 5).
+   * @returns The final assistant text.
    */
   async streamChat(
     systemPrompt: string,
     history: ChatTurn[],
     userMessage: string,
     stream: vscode.ChatResponseStream,
-    token: vscode.CancellationToken
+    token: vscode.CancellationToken,
+    tools: vscode.LanguageModelChatTool[] = [],
+    maxRounds = 5
   ): Promise<string> {
     const model = await this.selectModel();
     if (!model) {
@@ -59,9 +85,6 @@ export class LlmService {
     }
 
     const messages: vscode.LanguageModelChatMessage[] = [
-      // System prompt is sent as a User message because the stable API does
-      // not yet expose a System role; Copilot treats the first User turn as
-      // instructional context.
       vscode.LanguageModelChatMessage.User(systemPrompt),
       ...history.map((turn) =>
         turn.role === 'user'
@@ -71,16 +94,85 @@ export class LlmService {
       vscode.LanguageModelChatMessage.User(userMessage),
     ];
 
-    let full = '';
+    const requestOptions: vscode.LanguageModelChatRequestOptions = {};
+    if (tools.length > 0) {
+      requestOptions.tools = tools;
+    }
+
+    let fullText = '';
     try {
-      const response = await model.sendRequest(messages, {}, token);
-      for await (const fragment of response.text) {
+      for (let round = 0; round < maxRounds; round++) {
         if (token.isCancellationRequested) {
           break;
         }
-        stream.markdown(fragment);
-        full += fragment;
+
+        const response = await model.sendRequest(messages, requestOptions, token);
+
+        const toolCalls: vscode.LanguageModelToolCallPart[] = [];
+        let assistantText = '';
+
+        for await (const part of response.stream) {
+          if (token.isCancellationRequested) {
+            break;
+          }
+          if (part instanceof vscode.LanguageModelTextPart) {
+            stream.markdown(part.value);
+            assistantText += part.value;
+          } else if (part instanceof vscode.LanguageModelToolCallPart) {
+            toolCalls.push(part);
+          }
+        }
+
+        fullText += assistantText;
+
+        // No tool calls => model is done.
+        if (toolCalls.length === 0) {
+          return fullText;
+        }
+
+        // Echo the assistant's text + tool calls back into history.
+        const assistantParts: Array<
+          vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart
+        > = [];
+        if (assistantText.length > 0) {
+          assistantParts.push(new vscode.LanguageModelTextPart(assistantText));
+        }
+        assistantParts.push(...toolCalls);
+        messages.push(vscode.LanguageModelChatMessage.Assistant(assistantParts));
+
+        // Execute each tool call and append the result.
+        for (const call of toolCalls) {
+          stream.progress(`Calling tool: ${call.name}`);
+          let resultParts: vscode.LanguageModelToolResultPart;
+          try {
+            const result = await vscode.lm.invokeTool(
+              call.name,
+              { input: call.input, toolInvocationToken: undefined },
+              token
+            );
+            const textParts = result.content
+              .filter((p): p is vscode.LanguageModelTextPart =>
+                p instanceof vscode.LanguageModelTextPart
+              )
+              .map((p) => p.value)
+              .join('\n');
+            resultParts = new vscode.LanguageModelToolResultPart(call.callId, [
+              new vscode.LanguageModelTextPart(
+                textParts.length > 0 ? textParts : '(tool returned no text content)'
+              ),
+            ]);
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            resultParts = new vscode.LanguageModelToolResultPart(call.callId, [
+              new vscode.LanguageModelTextPart(`Tool error: ${message}`),
+            ]);
+          }
+          messages.push(vscode.LanguageModelChatMessage.User([resultParts]));
+        }
       }
+      stream.markdown(
+        `\n\n_(Reached ${maxRounds}-round tool-call limit; stopping.)_\n`
+      );
     } catch (err) {
       if (err instanceof vscode.LanguageModelError) {
         stream.markdown(`\u26a0\ufe0f Language model error: ${err.message}`);
@@ -89,7 +181,7 @@ export class LlmService {
         stream.markdown(`\u26a0\ufe0f Unexpected error: ${message}`);
       }
     }
-    return full;
+    return fullText;
   }
 
   /**

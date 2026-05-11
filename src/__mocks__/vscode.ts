@@ -56,21 +56,40 @@ export class ThemeIcon {
 }
 
 export const lm = {
-  selectChatModels: jest.fn(() => Promise.resolve([]))
+  selectChatModels: jest.fn(() => Promise.resolve([])),
+  tools: [] as any[],
+  invokeTool: jest.fn(() => Promise.resolve({ content: [] }))
 };
 
 export class LanguageModelChatMessage {
-  constructor(public role: number, public content: string) {}
-  static User(content: string): LanguageModelChatMessage {
+  constructor(public role: number, public content: any) {}
+  static User(content: any): LanguageModelChatMessage {
     return new LanguageModelChatMessage(1, content);
   }
-  static Assistant(content: string): LanguageModelChatMessage {
+  static Assistant(content: any): LanguageModelChatMessage {
     return new LanguageModelChatMessage(2, content);
   }
 }
 
 export class LanguageModelError extends Error {
   constructor(message: string) { super(message); }
+}
+
+export class LanguageModelTextPart {
+  constructor(public value: string) {}
+}
+
+export class LanguageModelToolCallPart {
+  constructor(public callId: string, public name: string, public input: any) {}
+}
+
+export class LanguageModelToolResultPart {
+  constructor(public callId: string, public content: any[]) {}
+}
+
+export enum LanguageModelChatToolMode {
+  Auto = 1,
+  Required = 2
 }
 
 export enum ChatResponseStream {}
